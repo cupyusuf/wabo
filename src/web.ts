@@ -9,7 +9,7 @@ let sendMessage: ((jid: string, text: string) => Promise<void>) | null = null;
 
 export function setQR(qr: string | null) {
   currentQR = qr;
-  if (qr) console.log('QR updated, visit /qr to scan');
+  if (qr) console.log('QR updated');
 }
 export function setStatus(status: string) { connectionStatus = status; }
 export function setSendFn(fn: (jid: string, text: string) => Promise<void>) { sendMessage = fn; }
@@ -17,6 +17,7 @@ export function setSendFn(fn: (jid: string, text: string) => Promise<void>) { se
 export function startWebServer() {
   const app = express();
   const port = parseInt(process.env.PORT || '8300');
+  const host = process.env.HOST || '0.0.0.0';
 
   app.use(express.json());
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -39,13 +40,36 @@ export function startWebServer() {
 
   // QR as PNG image
   app.get('/qr', async (_req, res) => {
-    if (!currentQR) { res.status(404).send('No QR available'); return; }
+    if (!currentQR) {
+      res.status(404).send('No QR available. Status: ' + connectionStatus);
+      return;
+    }
     const buffer = await QRCode.toBuffer(currentQR, { width: 400 });
     res.type('image/png').send(buffer);
   });
 
+  // QR as data URL (for embedding)
+  app.get('/qr/data', async (_req, res) => {
+    if (!currentQR) {
+      res.status(404).json({ error: 'No QR available', status: connectionStatus });
+      return;
+    }
+    const dataUrl = await QRCode.toDataURL(currentQR, { width: 400 });
+    res.json({ qr: currentQR, dataUrl, status: connectionStatus });
+  });
+
   // Main page
   app.get('/', async (_req, res) => {
+    let qrHtml = '';
+    if (currentQR) {
+      const dataUrl = await QRCode.toDataURL(currentQR, { width: 300 });
+      qrHtml = `<p>Scan QR dengan WhatsApp (Linked Devices):</p><img src="${dataUrl}" alt="QR Code"/>`;
+    } else if (connectionStatus === 'open') {
+      qrHtml = '<p>✅ Bot terhubung ke WhatsApp</p>';
+    } else {
+      qrHtml = '<p>Menunggu koneksi...</p>';
+    }
+
     res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WABO</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#fff}
@@ -54,14 +78,13 @@ export function startWebServer() {
 img{border-radius:8px}a{color:#4fc3f7;margin-top:16px}</style></head><body>
 <h1>WABO - WhatsApp Bot</h1>
 <div class="status ${connectionStatus}">${connectionStatus.toUpperCase()}</div>
-${currentQR ? `<p>Scan QR dengan WhatsApp (Linked Devices):</p><img src="/qr?t=${Date.now()}" alt="QR Code" width="300"/>` : connectionStatus === 'open' ? '<p>✅ Bot terhubung ke WhatsApp</p>' : '<p>Menunggu koneksi...</p>'}
+${qrHtml}
 <a href="/docs">📖 API Documentation (Swagger)</a>
 <script>setTimeout(()=>location.reload(),5000)</script>
 </body></html>`);
   });
 
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`Web GUI: http://0.0.0.0:${port}`);
-    console.log(`Swagger: http://0.0.0.0:${port}/docs`);
+  app.listen(port, host, () => {
+    console.log(`Web GUI: http://${host}:${port}`);
   });
 }
