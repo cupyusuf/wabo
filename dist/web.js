@@ -66,7 +66,7 @@ function startWebServer() {
             qrHtml = `<p>Scan QR dengan WhatsApp (Linked Devices):</p><img src="${dataUrl}"/>`;
         }
         else if (connectionStatus === 'open') {
-            qrHtml = '<p>✅ Bot terhubung ke WhatsApp</p>';
+            qrHtml = '<p>Bot terhubung ke WhatsApp</p>';
         }
         else {
             qrHtml = '<p>Menunggu koneksi...</p>';
@@ -80,7 +80,7 @@ img{border-radius:8px}a{color:#4fc3f7;margin-top:16px}</style></head><body>
 <h1>WABO - WhatsApp Bot</h1>
 <div class="status ${connectionStatus}">${connectionStatus.toUpperCase()}</div>
 ${qrHtml}
-<a href="/docs">📖 API Docs</a>
+<a href="/docs">API Docs</a>
 <script>setTimeout(()=>location.reload(),5000)</script>
 </body></html>`);
     });
