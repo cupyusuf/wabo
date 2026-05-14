@@ -22,11 +22,12 @@ async function startBot() {
     version,
     auth: state,
     logger,
-    printQRInTerminal: false,
+    printQRInTerminal: true,
   });
 
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
+    console.log('connection.update:', connection || '', qr ? 'QR received' : '');
 
     if (qr) {
       setQR(qr);

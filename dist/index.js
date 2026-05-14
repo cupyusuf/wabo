@@ -54,10 +54,11 @@ async function startBot() {
         version,
         auth: state,
         logger,
-        printQRInTerminal: false,
+        printQRInTerminal: true,
     });
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
+        console.log('connection.update:', connection || '', qr ? 'QR received' : '');
         if (qr) {
             (0, web_1.setQR)(qr);
             (0, web_1.setStatus)('waiting_scan');
