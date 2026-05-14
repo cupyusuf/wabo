@@ -8,6 +8,7 @@ import { usePostgresAuthState } from './db/auth-state';
 import { connectRabbitMQ, publishIncoming, consumeOutgoing } from './queue/rabbitmq';
 import { startWebServer, setQR, setStatus, setSendFn } from './web';
 import { chat } from './ai';
+import qrcode from 'qrcode-terminal';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
@@ -30,6 +31,7 @@ async function startBot() {
     console.log('connection.update:', connection || '', qr ? 'QR received' : '');
 
     if (qr) {
+      qrcode.generate(qr, { small: true });
       setQR(qr);
       setStatus('waiting_scan');
     }
