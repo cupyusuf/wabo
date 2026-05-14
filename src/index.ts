@@ -8,7 +8,6 @@ import { usePostgresAuthState } from './db/auth-state';
 import { connectRabbitMQ, publishIncoming, consumeOutgoing } from './queue/rabbitmq';
 import { startWebServer, setQR, setStatus, setSendFn } from './web';
 import { chat } from './ai';
-import qrcode from 'qrcode-terminal';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
@@ -23,15 +22,13 @@ async function startBot() {
     version,
     auth: state,
     logger,
-    printQRInTerminal: true,
+    printQRInTerminal: false,
   });
 
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
-    console.log('connection.update:', connection || '', qr ? 'QR received' : '');
 
     if (qr) {
-      qrcode.generate(qr, { small: true });
       setQR(qr);
       setStatus('waiting_scan');
     }

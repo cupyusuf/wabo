@@ -9,15 +9,15 @@ exports.setSendFn = setSendFn;
 exports.startWebServer = startWebServer;
 const express_1 = __importDefault(require("express"));
 const qrcode_1 = __importDefault(require("qrcode"));
-const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const swagger_1 = require("./swagger");
+const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
 let currentQR = null;
 let connectionStatus = 'disconnected';
 let sendMessage = null;
 function setQR(qr) {
     currentQR = qr;
     if (qr)
-        console.log('QR updated');
+        qrcode_terminal_1.default.generate(qr, { small: true });
 }
 function setStatus(status) { connectionStatus = status; }
 function setSendFn(fn) { sendMessage = fn; }
@@ -26,7 +26,17 @@ function startWebServer() {
     const port = parseInt(process.env.PORT || '8300');
     const host = process.env.HOST || '0.0.0.0';
     app.use(express_1.default.json());
-    app.use('/docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
+    // Swagger JSON spec
+    app.get('/docs/swagger.json', (_req, res) => { res.json(swagger_1.swaggerSpec); });
+    // Swagger UI via CDN
+    app.get('/docs', (_req, res) => {
+        res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WABO API Docs</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head><body><div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>SwaggerUIBundle({url:'/docs/swagger.json',dom_id:'#swagger-ui'})</script>
+</body></html>`);
+    });
     app.get('/api/status', (_req, res) => {
         res.json({ status: connectionStatus, hasQR: !!currentQR });
     });
@@ -42,36 +52,18 @@ function startWebServer() {
         }
         try {
             await sendMessage(jid, text);
-            res.json({ success: true, message: 'Message queued' });
+            res.json({ success: true, message: 'Message sent' });
         }
         catch (err) {
             res.status(500).json({ error: err.message });
         }
-    });
-    // QR as PNG image
-    app.get('/qr', async (_req, res) => {
-        if (!currentQR) {
-            res.status(404).send('No QR available. Status: ' + connectionStatus);
-            return;
-        }
-        const buffer = await qrcode_1.default.toBuffer(currentQR, { width: 400 });
-        res.type('image/png').send(buffer);
-    });
-    // QR as data URL (for embedding)
-    app.get('/qr/data', async (_req, res) => {
-        if (!currentQR) {
-            res.status(404).json({ error: 'No QR available', status: connectionStatus });
-            return;
-        }
-        const dataUrl = await qrcode_1.default.toDataURL(currentQR, { width: 400 });
-        res.json({ qr: currentQR, dataUrl, status: connectionStatus });
     });
     // Main page
     app.get('/', async (_req, res) => {
         let qrHtml = '';
         if (currentQR) {
             const dataUrl = await qrcode_1.default.toDataURL(currentQR, { width: 300 });
-            qrHtml = `<p>Scan QR dengan WhatsApp (Linked Devices):</p><img src="${dataUrl}" alt="QR Code"/>`;
+            qrHtml = `<p>Scan QR dengan WhatsApp (Linked Devices):</p><img src="${dataUrl}"/>`;
         }
         else if (connectionStatus === 'open') {
             qrHtml = '<p>✅ Bot terhubung ke WhatsApp</p>';
@@ -88,7 +80,7 @@ img{border-radius:8px}a{color:#4fc3f7;margin-top:16px}</style></head><body>
 <h1>WABO - WhatsApp Bot</h1>
 <div class="status ${connectionStatus}">${connectionStatus.toUpperCase()}</div>
 ${qrHtml}
-<a href="/docs">📖 API Documentation (Swagger)</a>
+<a href="/docs">📖 API Docs</a>
 <script>setTimeout(()=>location.reload(),5000)</script>
 </body></html>`);
     });
