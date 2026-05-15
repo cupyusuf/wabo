@@ -9,14 +9,11 @@ exports.setSendFn = setSendFn;
 exports.setResetFn = setResetFn;
 exports.startWebServer = startWebServer;
 const express_1 = __importDefault(require("express"));
-const qrcode_1 = __importDefault(require("qrcode"));
 const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
-let currentQR = null;
 let connectionStatus = 'disconnected';
 let sendMessage = null;
 let resetSession = null;
 function setQR(qr) {
-    currentQR = qr;
     if (qr)
         qrcode_terminal_1.default.generate(qr, { small: true });
 }
@@ -38,15 +35,7 @@ function startWebServer() {
         next();
     });
     app.get('/api/status', (_req, res) => {
-        res.json({ status: connectionStatus, hasQR: !!currentQR });
-    });
-    app.get('/api/qr', async (_req, res) => {
-        if (!currentQR) {
-            res.status(204).end();
-            return;
-        }
-        const png = await qrcode_1.default.toBuffer(currentQR, { width: 300 });
-        res.type('image/png').send(png);
+        res.json({ status: connectionStatus });
     });
     app.post('/api/reset', async (_req, res) => {
         if (!resetSession) {
@@ -54,7 +43,7 @@ function startWebServer() {
             return;
         }
         await resetSession();
-        res.json({ success: true, message: 'Session reset, new QR will appear' });
+        res.json({ success: true, message: 'Session reset' });
     });
     app.post('/api/send', async (req, res) => {
         const { jid, text } = req.body;
@@ -74,46 +63,7 @@ function startWebServer() {
             res.status(500).json({ error: err.message });
         }
     });
-    app.get('/', (_req, res) => {
-        res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WABO</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#fff}
-.status{padding:8px 16px;border-radius:4px;margin:16px;font-size:1.2em}
-.open{background:#1b5e20}.disconnected,.logged_out{background:#b71c1c}.waiting_scan,.reconnecting{background:#e65100}
-img{border-radius:8px;margin:16px}#msg{margin:16px;font-size:1.1em}</style></head><body>
-<h1>WABO - WhatsApp Bot</h1>
-<div class="status" id="st">...</div>
-<div id="qr"></div>
-<div id="msg"></div>
-<script>
-async function poll(){
-  try{
-    const r=await fetch('/api/status');
-    const d=await r.json();
-    const st=document.getElementById('st');
-    st.textContent=d.status.toUpperCase();
-    st.className='status '+d.status;
-    const qr=document.getElementById('qr');
-    const msg=document.getElementById('msg');
-    if(d.status==='open'){
-      qr.innerHTML='';msg.textContent='Bot terhubung ke WhatsApp';
-    }else if(d.hasQR){
-      qr.innerHTML='<img src="/api/qr?t='+Date.now()+'" alt="QR"/>';
-      msg.textContent='Scan QR dengan WhatsApp (Linked Devices)';
-    }else{
-      qr.innerHTML='';
-      msg.innerHTML='Menunggu QR dari WhatsApp... <br><button onclick="resetSession()" style="margin-top:12px;padding:8px 16px;background:#b71c1c;color:#fff;border:none;border-radius:4px;cursor:pointer">Reset Session</button>';
-    }
-  }catch(e){}
-  setTimeout(poll,3000);
-}
-async function resetSession(){
-  await fetch('/api/reset',{method:'POST'});
-}
-poll();
-</script></body></html>`);
-    });
     app.listen(port, host, () => {
-        console.log(`Web GUI: http://${host}:${port}`);
+        console.log(`API server: http://${host}:${port}`);
     });
 }

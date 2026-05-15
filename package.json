@@ -10,14 +10,13 @@
     "migrate": "ts-node src/db/migrate.ts"
   },
   "dependencies": {
-    "baileys": "^6.7.16",
-    "pg": "^8.13.1",
     "amqplib": "^0.10.5",
+    "baileys": "^6.7.16",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "openai": "^4.77.0",
+    "pg": "^8.13.1",
     "pino": "^9.6.0",
-    "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
@@ -25,8 +24,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
-    "@types/qrcode": "^1.5.5",
-    "typescript": "^5.7.3",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
   }
 }
