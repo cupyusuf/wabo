@@ -10,7 +10,7 @@ const client = new openai_1.default({
     apiKey: process.env.OPENROUTER_API_KEY || '',
 });
 const SYSTEM_PROMPT = process.env.BOT_SYSTEM_PROMPT || 'Kamu adalah asisten yang ramah dan membantu. Jawab dalam bahasa yang sama dengan pengguna.';
-const MODEL = process.env.AI_MODEL || 'deepseek/deepseek-chat:free';
+const MODEL = process.env.AI_MODEL || 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free';
 // Simple in-memory conversation history per JID (last 10 messages)
 const history = new Map();
 async function chat(jid, userMessage) {
