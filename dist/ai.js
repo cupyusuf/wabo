@@ -27,7 +27,10 @@ async function chat(jid, userMessage) {
             ...msgs,
         ],
     });
-    const reply = response.choices[0]?.message?.content || '';
+    const raw = response.choices[0]?.message?.content || '';
+    const reply = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    if (!reply)
+        return '';
     msgs.push({ role: 'assistant', content: reply });
     history.set(jid, msgs);
     return reply;
