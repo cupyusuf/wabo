@@ -5,6 +5,7 @@ import qrterm from 'qrcode-terminal';
 let currentQR: string | null = null;
 let connectionStatus: string = 'disconnected';
 let sendMessage: ((jid: string, text: string) => Promise<void>) | null = null;
+let resetSession: (() => Promise<void>) | null = null;
 
 export function setQR(qr: string | null) {
   currentQR = qr;
@@ -12,6 +13,7 @@ export function setQR(qr: string | null) {
 }
 export function setStatus(status: string) { connectionStatus = status; }
 export function setSendFn(fn: (jid: string, text: string) => Promise<void>) { sendMessage = fn; }
+export function setResetFn(fn: () => Promise<void>) { resetSession = fn; }
 
 export function startWebServer() {
   const app = express();
@@ -35,6 +37,12 @@ export function startWebServer() {
     if (!currentQR) { res.status(204).end(); return; }
     const png = await QRCode.toBuffer(currentQR, { width: 300 });
     res.type('image/png').send(png);
+  });
+
+  app.post('/api/reset', async (_req, res) => {
+    if (!resetSession) { res.status(503).json({ error: 'Not ready' }); return; }
+    await resetSession();
+    res.json({ success: true, message: 'Session reset, new QR will appear' });
   });
 
   app.post('/api/send', async (req, res) => {
@@ -76,10 +84,14 @@ async function poll(){
       qr.innerHTML='<img src="/api/qr?t='+Date.now()+'" alt="QR"/>';
       msg.textContent='Scan QR dengan WhatsApp (Linked Devices)';
     }else{
-      qr.innerHTML='';msg.textContent='Menunggu QR dari WhatsApp...';
+      qr.innerHTML='';
+      msg.innerHTML='Menunggu QR dari WhatsApp... <br><button onclick="resetSession()" style="margin-top:12px;padding:8px 16px;background:#b71c1c;color:#fff;border:none;border-radius:4px;cursor:pointer">Reset Session</button>';
     }
   }catch(e){}
   setTimeout(poll,3000);
+}
+async function resetSession(){
+  await fetch('/api/reset',{method:'POST'});
 }
 poll();
 </script></body></html>`);

@@ -6,8 +6,9 @@ import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import { usePostgresAuthState } from './db/auth-state';
 import { connectRabbitMQ, publishIncoming, consumeOutgoing } from './queue/rabbitmq';
-import { startWebServer, setQR, setStatus, setSendFn } from './web';
+import { startWebServer, setQR, setStatus, setSendFn, setResetFn } from './web';
 import { chat } from './ai';
+import { pool } from './db/pool';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
@@ -15,8 +16,7 @@ startWebServer();
 
 let currentSock: ReturnType<typeof makeWASocket> | null = null;
 
-async function startBot() {
-  // Close existing socket to ensure single session
+export async function startBot() {
   if (currentSock) {
     currentSock.ev.removeAllListeners('connection.update');
     currentSock.ev.removeAllListeners('creds.update');
@@ -25,7 +25,9 @@ async function startBot() {
     currentSock = null;
   }
 
-  await connectRabbitMQ();
+  // RabbitMQ non-blocking — bot tetap jalan walau queue gagal
+  connectRabbitMQ().catch((err) => console.error('RabbitMQ error:', err.message));
+
   const { state, saveCreds } = await usePostgresAuthState();
   const { version } = await fetchLatestBaileysVersion();
 
@@ -51,7 +53,8 @@ async function startBot() {
       const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
       if (reason === DisconnectReason.loggedOut) {
         setStatus('logged_out');
-        console.log('Logged out. Clear auth state and restart.');
+        console.log('Logged out. Resetting auth state...');
+        resetAndRestart();
       } else {
         setStatus('reconnecting');
         console.log(`Connection closed (${reason}). Reconnecting in 3s...`);
@@ -84,7 +87,6 @@ async function startBot() {
         timestamp: msg.messageTimestamp,
       });
 
-      // Auto-reply with DeepSeek AI
       if (text) {
         const reply = await chat(jid, text);
         if (reply) await sock.sendMessage(jid, { text: reply });
@@ -92,10 +94,19 @@ async function startBot() {
     }
   });
 
-  await consumeOutgoing(async ({ jid, text }) => {
+  consumeOutgoing(async ({ jid, text }) => {
     await sock.sendMessage(jid, { text });
-  });
+  }).catch((err) => console.error('consumeOutgoing error:', err.message));
 }
+
+async function resetAndRestart() {
+  await pool.query('DELETE FROM auth_creds');
+  await pool.query('DELETE FROM auth_keys');
+  console.log('Auth state cleared. Restarting...');
+  startBot();
+}
+
+setResetFn(resetAndRestart);
 
 process.on('SIGHUP', () => {
   console.log('Received SIGHUP, exiting...');

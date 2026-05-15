@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.setQR = setQR;
 exports.setStatus = setStatus;
 exports.setSendFn = setSendFn;
+exports.setResetFn = setResetFn;
 exports.startWebServer = startWebServer;
 const express_1 = __importDefault(require("express"));
 const qrcode_1 = __importDefault(require("qrcode"));
@@ -13,6 +14,7 @@ const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
 let currentQR = null;
 let connectionStatus = 'disconnected';
 let sendMessage = null;
+let resetSession = null;
 function setQR(qr) {
     currentQR = qr;
     if (qr)
@@ -20,6 +22,7 @@ function setQR(qr) {
 }
 function setStatus(status) { connectionStatus = status; }
 function setSendFn(fn) { sendMessage = fn; }
+function setResetFn(fn) { resetSession = fn; }
 function startWebServer() {
     const app = (0, express_1.default)();
     const port = parseInt(process.env.PORT || '8300');
@@ -44,6 +47,14 @@ function startWebServer() {
         }
         const png = await qrcode_1.default.toBuffer(currentQR, { width: 300 });
         res.type('image/png').send(png);
+    });
+    app.post('/api/reset', async (_req, res) => {
+        if (!resetSession) {
+            res.status(503).json({ error: 'Not ready' });
+            return;
+        }
+        await resetSession();
+        res.json({ success: true, message: 'Session reset, new QR will appear' });
     });
     app.post('/api/send', async (req, res) => {
         const { jid, text } = req.body;
@@ -90,10 +101,14 @@ async function poll(){
       qr.innerHTML='<img src="/api/qr?t='+Date.now()+'" alt="QR"/>';
       msg.textContent='Scan QR dengan WhatsApp (Linked Devices)';
     }else{
-      qr.innerHTML='';msg.textContent='Menunggu QR dari WhatsApp...';
+      qr.innerHTML='';
+      msg.innerHTML='Menunggu QR dari WhatsApp... <br><button onclick="resetSession()" style="margin-top:12px;padding:8px 16px;background:#b71c1c;color:#fff;border:none;border-radius:4px;cursor:pointer">Reset Session</button>';
     }
   }catch(e){}
   setTimeout(poll,3000);
+}
+async function resetSession(){
+  await fetch('/api/reset',{method:'POST'});
 }
 poll();
 </script></body></html>`);

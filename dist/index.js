@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.startBot = startBot;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const baileys_1 = __importStar(require("baileys"));
@@ -44,11 +45,11 @@ const auth_state_1 = require("./db/auth-state");
 const rabbitmq_1 = require("./queue/rabbitmq");
 const web_1 = require("./web");
 const ai_1 = require("./ai");
+const pool_1 = require("./db/pool");
 const logger = (0, pino_1.default)({ level: process.env.LOG_LEVEL || 'silent' });
 (0, web_1.startWebServer)();
 let currentSock = null;
 async function startBot() {
-    // Close existing socket to ensure single session
     if (currentSock) {
         currentSock.ev.removeAllListeners('connection.update');
         currentSock.ev.removeAllListeners('creds.update');
@@ -56,7 +57,8 @@ async function startBot() {
         currentSock.end(undefined);
         currentSock = null;
     }
-    await (0, rabbitmq_1.connectRabbitMQ)();
+    // RabbitMQ non-blocking — bot tetap jalan walau queue gagal
+    (0, rabbitmq_1.connectRabbitMQ)().catch((err) => console.error('RabbitMQ error:', err.message));
     const { state, saveCreds } = await (0, auth_state_1.usePostgresAuthState)();
     const { version } = await (0, baileys_1.fetchLatestBaileysVersion)();
     const sock = (0, baileys_1.default)({
@@ -78,7 +80,8 @@ async function startBot() {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason === baileys_1.DisconnectReason.loggedOut) {
                 (0, web_1.setStatus)('logged_out');
-                console.log('Logged out. Clear auth state and restart.');
+                console.log('Logged out. Resetting auth state...');
+                resetAndRestart();
             }
             else {
                 (0, web_1.setStatus)('reconnecting');
@@ -109,7 +112,6 @@ async function startBot() {
                 text,
                 timestamp: msg.messageTimestamp,
             });
-            // Auto-reply with DeepSeek AI
             if (text) {
                 const reply = await (0, ai_1.chat)(jid, text);
                 if (reply)
@@ -117,10 +119,17 @@ async function startBot() {
             }
         }
     });
-    await (0, rabbitmq_1.consumeOutgoing)(async ({ jid, text }) => {
+    (0, rabbitmq_1.consumeOutgoing)(async ({ jid, text }) => {
         await sock.sendMessage(jid, { text });
-    });
+    }).catch((err) => console.error('consumeOutgoing error:', err.message));
 }
+async function resetAndRestart() {
+    await pool_1.pool.query('DELETE FROM auth_creds');
+    await pool_1.pool.query('DELETE FROM auth_keys');
+    console.log('Auth state cleared. Restarting...');
+    startBot();
+}
+(0, web_1.setResetFn)(resetAndRestart);
 process.on('SIGHUP', () => {
     console.log('Received SIGHUP, exiting...');
     process.exit(0);
