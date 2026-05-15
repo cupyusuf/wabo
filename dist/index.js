@@ -46,7 +46,16 @@ const web_1 = require("./web");
 const ai_1 = require("./ai");
 const logger = (0, pino_1.default)({ level: process.env.LOG_LEVEL || 'silent' });
 (0, web_1.startWebServer)();
+let currentSock = null;
 async function startBot() {
+    // Close existing socket to ensure single session
+    if (currentSock) {
+        currentSock.ev.removeAllListeners('connection.update');
+        currentSock.ev.removeAllListeners('creds.update');
+        currentSock.ev.removeAllListeners('messages.upsert');
+        currentSock.end(undefined);
+        currentSock = null;
+    }
     await (0, rabbitmq_1.connectRabbitMQ)();
     const { state, saveCreds } = await (0, auth_state_1.usePostgresAuthState)();
     const { version } = await (0, baileys_1.fetchLatestBaileysVersion)();
@@ -55,7 +64,9 @@ async function startBot() {
         auth: state,
         logger,
         printQRInTerminal: false,
+        browser: ['WABO', 'Chrome', '1.0.0'],
     });
+    currentSock = sock;
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
@@ -71,8 +82,8 @@ async function startBot() {
             }
             else {
                 (0, web_1.setStatus)('reconnecting');
-                console.log(`Connection closed (${reason}). Reconnecting...`);
-                startBot();
+                console.log(`Connection closed (${reason}). Reconnecting in 3s...`);
+                setTimeout(() => startBot(), 3000);
             }
         }
         if (connection === 'open') {

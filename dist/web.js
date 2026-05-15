@@ -53,6 +53,22 @@ function startWebServer() {
     const port = parseInt(process.env.PORT || '8300');
     const host = process.env.HOST || '0.0.0.0';
     app.use(express_1.default.json());
+    const apiKey = process.env.API_KEY;
+    app.use('/docs', (req, res, next) => {
+        if (apiKey && req.query.key !== apiKey) {
+            res.status(401).send('Unauthorized');
+            return;
+        }
+        next();
+    });
+    app.use('/api', (req, res, next) => {
+        const key = req.headers['x-api-key'] || req.query.key;
+        if (apiKey && key !== apiKey) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        next();
+    });
     app.get('/docs/swagger.json', (_req, res) => { res.json(swagger_1.swaggerSpec); });
     app.get('/docs', (_req, res) => {
         res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WABO API</title>
@@ -107,7 +123,7 @@ img{border-radius:8px}a{color:#4fc3f7;margin-top:16px}</style></head><body>
 <div class="status ${connectionStatus}">${connectionStatus.toUpperCase()}</div>
 ${body}
 <a href="/docs">API Docs</a>
-<script>if('${connectionStatus}'!=='open')setTimeout(()=>location.reload(),10000)</script>
+<script>if('${connectionStatus}'!=='open')setTimeout(()=>location.reload(),5000)</script>
 </body></html>`);
     });
     app.listen(port, host, () => {

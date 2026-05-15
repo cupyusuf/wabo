@@ -13,7 +13,18 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
 startWebServer();
 
+let currentSock: ReturnType<typeof makeWASocket> | null = null;
+
 async function startBot() {
+  // Close existing socket to ensure single session
+  if (currentSock) {
+    currentSock.ev.removeAllListeners('connection.update');
+    currentSock.ev.removeAllListeners('creds.update');
+    currentSock.ev.removeAllListeners('messages.upsert');
+    currentSock.end(undefined);
+    currentSock = null;
+  }
+
   await connectRabbitMQ();
   const { state, saveCreds } = await usePostgresAuthState();
   const { version } = await fetchLatestBaileysVersion();
@@ -23,7 +34,9 @@ async function startBot() {
     auth: state,
     logger,
     printQRInTerminal: false,
+    browser: ['WABO', 'Chrome', '1.0.0'],
   });
+  currentSock = sock;
 
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -41,8 +54,8 @@ async function startBot() {
         console.log('Logged out. Clear auth state and restart.');
       } else {
         setStatus('reconnecting');
-        console.log(`Connection closed (${reason}). Reconnecting...`);
-        startBot();
+        console.log(`Connection closed (${reason}). Reconnecting in 3s...`);
+        setTimeout(() => startBot(), 3000);
       }
     }
 
