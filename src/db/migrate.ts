@@ -6,6 +6,16 @@ dotenv.config();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function migrate() {
+  const fresh = process.argv.includes('--fresh');
+
+  if (fresh) {
+    await pool.query(`
+      DROP TABLE IF EXISTS auth_keys;
+      DROP TABLE IF EXISTS auth_creds;
+    `);
+    console.log('Dropped all tables');
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS auth_creds (
       id VARCHAR(50) PRIMARY KEY DEFAULT 'creds',
