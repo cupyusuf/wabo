@@ -1,6 +1,6 @@
 import express from 'express';
 import QRCode from 'qrcode';
-import { swaggerSpec } from './swagger';
+
 import qrterm from 'qrcode-terminal';
 
 let currentQR: string | null = null;
@@ -35,24 +35,10 @@ export function startWebServer() {
   app.use(express.json());
 
   const apiKey = process.env.API_KEY;
-  app.use('/docs', (req, res, next) => {
-    if (apiKey && req.query.key !== apiKey) { res.status(401).send('Unauthorized'); return; }
-    next();
-  });
   app.use('/api', (req, res, next) => {
     const key = req.headers['x-api-key'] || req.query.key;
     if (apiKey && key !== apiKey) { res.status(401).json({ error: 'Unauthorized' }); return; }
     next();
-  });
-
-  app.get('/docs/swagger.json', (_req, res) => { res.json(swaggerSpec); });
-  app.get('/docs', (_req, res) => {
-    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WABO API</title>
-<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
-</head><body><div id="swagger-ui"></div>
-<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-<script>SwaggerUIBundle({url:'/docs/swagger.json',dom_id:'#swagger-ui'})</script>
-</body></html>`);
   });
 
   app.get('/api/status', (_req, res) => {
@@ -92,7 +78,6 @@ img{border-radius:8px}a{color:#4fc3f7;margin-top:16px}</style></head><body>
 <h1>WABO - WhatsApp Bot</h1>
 <div class="status ${connectionStatus}">${connectionStatus.toUpperCase()}</div>
 ${body}
-<a href="/docs">API Docs</a>
 <script>if('${connectionStatus}'!=='open')setTimeout(()=>location.reload(),5000)</script>
 </body></html>`);
   });
