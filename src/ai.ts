@@ -6,7 +6,7 @@ const client = new OpenAI({
 });
 
 const SYSTEM_PROMPT = process.env.BOT_SYSTEM_PROMPT || 'Kamu adalah asisten yang ramah dan membantu. Jawab dalam bahasa yang sama dengan pengguna.';
-const MODEL = process.env.AI_MODEL || 'deepseek/deepseek-r1-0528:free';
+const MODEL = process.env.AI_MODEL || 'deepseek/deepseek-v4-flash:free';
 
 // Simple in-memory conversation history per JID (last 10 messages)
 const history = new Map<string, { role: 'user' | 'assistant'; content: string }[]>();
