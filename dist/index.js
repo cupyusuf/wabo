@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '..', '.env') });
+const http_1 = __importDefault(require("http"));
 const baileys_1 = __importStar(require("baileys"));
 const pino_1 = __importDefault(require("pino"));
 const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
@@ -47,6 +48,11 @@ const rabbitmq_1 = require("./queue/rabbitmq");
 const ai_1 = require("./ai");
 const pool_1 = require("./db/pool");
 const logger = (0, pino_1.default)({ level: process.env.LOG_LEVEL || 'silent' });
+// Minimal HTTP server agar alwaysdata Sites tidak kill proses
+http_1.default.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('WABO running');
+}).listen(parseInt(process.env.PORT || '8100'), process.env.HOST || '0.0.0.0');
 let currentSock = null;
 async function startBot() {
     if (currentSock) {

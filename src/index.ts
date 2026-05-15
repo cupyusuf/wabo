@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
+import http from 'http';
 import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from 'baileys';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
@@ -12,6 +13,12 @@ import { chat } from './ai';
 import { pool } from './db/pool';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
+
+// Minimal HTTP server agar alwaysdata Sites tidak kill proses
+http.createServer((_req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('WABO running');
+}).listen(parseInt(process.env.PORT || '8100'), process.env.HOST || '0.0.0.0');
 
 let currentSock: ReturnType<typeof makeWASocket> | null = null;
 
