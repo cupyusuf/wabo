@@ -20,33 +20,6 @@ function setQR(qr) {
 }
 function setStatus(status) { connectionStatus = status; }
 function setSendFn(fn) { sendMessage = fn; }
-function waitForQR(timeoutMs = 30000) {
-    return new Promise((resolve) => {
-        if (currentQR) {
-            resolve(currentQR);
-            return;
-        }
-        if (connectionStatus === 'open') {
-            resolve(null);
-            return;
-        }
-        const start = Date.now();
-        const interval = setInterval(() => {
-            if (currentQR) {
-                clearInterval(interval);
-                resolve(currentQR);
-            }
-            else if (connectionStatus === 'open') {
-                clearInterval(interval);
-                resolve(null);
-            }
-            else if (Date.now() - start >= timeoutMs) {
-                clearInterval(interval);
-                resolve(null);
-            }
-        }, 500);
-    });
-}
 function startWebServer() {
     const app = (0, express_1.default)();
     const port = parseInt(process.env.PORT || '8300');
@@ -63,6 +36,14 @@ function startWebServer() {
     });
     app.get('/api/status', (_req, res) => {
         res.json({ status: connectionStatus, hasQR: !!currentQR });
+    });
+    app.get('/api/qr', async (_req, res) => {
+        if (!currentQR) {
+            res.status(204).end();
+            return;
+        }
+        const png = await qrcode_1.default.toBuffer(currentQR, { width: 300 });
+        res.type('image/png').send(png);
     });
     app.post('/api/send', async (req, res) => {
         const { jid, text } = req.body;
@@ -82,31 +63,40 @@ function startWebServer() {
             res.status(500).json({ error: err.message });
         }
     });
-    // Main page - waits for QR like wage does
-    app.get('/', async (_req, res) => {
-        const qr = await waitForQR(15000);
-        let body = '';
-        if (qr) {
-            const dataUrl = await qrcode_1.default.toDataURL(qr, { width: 300 });
-            body = `<p>Scan QR dengan WhatsApp (Linked Devices):</p><img src="${dataUrl}"/>`;
-        }
-        else if (connectionStatus === 'open') {
-            body = '<p>Bot terhubung ke WhatsApp</p>';
-        }
-        else {
-            body = '<p>QR belum tersedia. <a href="/">Refresh</a></p>';
-        }
+    app.get('/', (_req, res) => {
         res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WABO</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#fff}
 .status{padding:8px 16px;border-radius:4px;margin:16px;font-size:1.2em}
 .open{background:#1b5e20}.disconnected,.logged_out{background:#b71c1c}.waiting_scan,.reconnecting{background:#e65100}
-img{border-radius:8px}a{color:#4fc3f7;margin-top:16px}</style></head><body>
+img{border-radius:8px;margin:16px}#msg{margin:16px;font-size:1.1em}</style></head><body>
 <h1>WABO - WhatsApp Bot</h1>
-<div class="status ${connectionStatus}">${connectionStatus.toUpperCase()}</div>
-${body}
-<script>if('${connectionStatus}'!=='open')setTimeout(()=>location.reload(),5000)</script>
-</body></html>`);
+<div class="status" id="st">...</div>
+<div id="qr"></div>
+<div id="msg"></div>
+<script>
+async function poll(){
+  try{
+    const r=await fetch('/api/status');
+    const d=await r.json();
+    const st=document.getElementById('st');
+    st.textContent=d.status.toUpperCase();
+    st.className='status '+d.status;
+    const qr=document.getElementById('qr');
+    const msg=document.getElementById('msg');
+    if(d.status==='open'){
+      qr.innerHTML='';msg.textContent='Bot terhubung ke WhatsApp';
+    }else if(d.hasQR){
+      qr.innerHTML='<img src="/api/qr?t='+Date.now()+'" alt="QR"/>';
+      msg.textContent='Scan QR dengan WhatsApp (Linked Devices)';
+    }else{
+      qr.innerHTML='';msg.textContent='Menunggu QR dari WhatsApp...';
+    }
+  }catch(e){}
+  setTimeout(poll,3000);
+}
+poll();
+</script></body></html>`);
     });
     app.listen(port, host, () => {
         console.log(`Web GUI: http://${host}:${port}`);

@@ -125,4 +125,8 @@ process.on('SIGHUP', () => {
     console.log('Received SIGHUP, exiting...');
     process.exit(0);
 });
-startBot().catch(console.error);
+startBot().catch((err) => {
+    console.error('startBot failed:', err.message);
+    console.log('Retrying in 5s...');
+    setTimeout(() => startBot().catch(console.error), 5000);
+});
