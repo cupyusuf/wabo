@@ -18,19 +18,23 @@ export async function chat(jid: string, userMessage: string): Promise<string> {
   msgs.push({ role: 'user', content: userMessage });
   if (msgs.length > 10) msgs.splice(0, msgs.length - 10);
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...msgs,
-    ],
-  });
+  try {
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...msgs,
+      ],
+    });
 
-  const raw = response.choices[0]?.message?.content || '';
-  const reply = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-  if (!reply) return '';
-  msgs.push({ role: 'assistant', content: reply });
-  history.set(jid, msgs);
-
-  return reply;
+    const raw = response.choices[0]?.message?.content || '';
+    const reply = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    if (!reply) return '';
+    msgs.push({ role: 'assistant', content: reply });
+    history.set(jid, msgs);
+    return reply;
+  } catch (err: any) {
+    console.error('AI error:', err.message);
+    return '';
+  }
 }
