@@ -1,1 +1,1 @@
-export declare function startBot(): Promise<void>;
+export {};

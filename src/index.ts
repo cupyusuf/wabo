@@ -4,19 +4,17 @@ dotenv.config();
 import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from 'baileys';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
+import qrterm from 'qrcode-terminal';
 import { usePostgresAuthState } from './db/auth-state';
 import { connectRabbitMQ, publishIncoming, consumeOutgoing } from './queue/rabbitmq';
-import { startWebServer, setQR, setStatus, setSendFn, setResetFn } from './web';
 import { chat } from './ai';
 import { pool } from './db/pool';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
-startWebServer();
-
 let currentSock: ReturnType<typeof makeWASocket> | null = null;
 
-export async function startBot() {
+async function startBot() {
   if (currentSock) {
     currentSock.ev.removeAllListeners('connection.update');
     currentSock.ev.removeAllListeners('creds.update');
@@ -25,7 +23,6 @@ export async function startBot() {
     currentSock = null;
   }
 
-  // RabbitMQ non-blocking — bot tetap jalan walau queue gagal
   connectRabbitMQ().catch((err) => console.error('RabbitMQ error:', err.message));
 
   const { state, saveCreds } = await usePostgresAuthState();
@@ -44,28 +41,22 @@ export async function startBot() {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      setQR(qr);
-      setStatus('waiting_scan');
+      console.log('Scan QR code below:');
+      qrterm.generate(qr, { small: true });
     }
 
     if (connection === 'close') {
-      setQR(null);
       const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
       if (reason === DisconnectReason.loggedOut) {
-        setStatus('logged_out');
         console.log('Logged out. Resetting auth state...');
         resetAndRestart();
       } else {
-        setStatus('reconnecting');
         console.log(`Connection closed (${reason}). Reconnecting in 3s...`);
         setTimeout(() => startBot(), 3000);
       }
     }
 
     if (connection === 'open') {
-      setQR(null);
-      setStatus('open');
-      setSendFn(async (jid, text) => { await sock.sendMessage(jid, { text }); });
       console.log('Connected to WhatsApp');
     }
   });
@@ -105,8 +96,6 @@ async function resetAndRestart() {
   console.log('Auth state cleared. Restarting...');
   startBot();
 }
-
-setResetFn(resetAndRestart);
 
 process.on('SIGHUP', () => {
   console.log('Received SIGHUP, exiting...');

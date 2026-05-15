@@ -36,18 +36,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startBot = startBot;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const baileys_1 = __importStar(require("baileys"));
 const pino_1 = __importDefault(require("pino"));
+const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
 const auth_state_1 = require("./db/auth-state");
 const rabbitmq_1 = require("./queue/rabbitmq");
-const web_1 = require("./web");
 const ai_1 = require("./ai");
 const pool_1 = require("./db/pool");
 const logger = (0, pino_1.default)({ level: process.env.LOG_LEVEL || 'silent' });
-(0, web_1.startWebServer)();
 let currentSock = null;
 async function startBot() {
     if (currentSock) {
@@ -57,7 +55,6 @@ async function startBot() {
         currentSock.end(undefined);
         currentSock = null;
     }
-    // RabbitMQ non-blocking — bot tetap jalan walau queue gagal
     (0, rabbitmq_1.connectRabbitMQ)().catch((err) => console.error('RabbitMQ error:', err.message));
     const { state, saveCreds } = await (0, auth_state_1.usePostgresAuthState)();
     const { version } = await (0, baileys_1.fetchLatestBaileysVersion)();
@@ -72,27 +69,21 @@ async function startBot() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
-            (0, web_1.setQR)(qr);
-            (0, web_1.setStatus)('waiting_scan');
+            console.log('Scan QR code below:');
+            qrcode_terminal_1.default.generate(qr, { small: true });
         }
         if (connection === 'close') {
-            (0, web_1.setQR)(null);
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason === baileys_1.DisconnectReason.loggedOut) {
-                (0, web_1.setStatus)('logged_out');
                 console.log('Logged out. Resetting auth state...');
                 resetAndRestart();
             }
             else {
-                (0, web_1.setStatus)('reconnecting');
                 console.log(`Connection closed (${reason}). Reconnecting in 3s...`);
                 setTimeout(() => startBot(), 3000);
             }
         }
         if (connection === 'open') {
-            (0, web_1.setQR)(null);
-            (0, web_1.setStatus)('open');
-            (0, web_1.setSendFn)(async (jid, text) => { await sock.sendMessage(jid, { text }); });
             console.log('Connected to WhatsApp');
         }
     });
@@ -129,7 +120,6 @@ async function resetAndRestart() {
     console.log('Auth state cleared. Restarting...');
     startBot();
 }
-(0, web_1.setResetFn)(resetAndRestart);
 process.on('SIGHUP', () => {
     console.log('Received SIGHUP, exiting...');
     process.exit(0);
